@@ -6,19 +6,20 @@ const FB = "https://www.gstatic.com/firebasejs/10.12.2/";
 
 // ---------- Reparti ----------
 const AISLES = [
-  ["frutta", "Frutta e verdura", /mel[ae]|banan|aranc|limon|pomodor|insalat|lattug|zucchin|carot|patat|cipoll|agli|frutta|verdur|\bpera|\bpere\b|\buva\b|fragol|kiwi|spinac|peperon|melanzan|funghi|basilico|prezzemolo|rucola/],
-  ["pane", "Pane e forno", /\bpane|panin|grissin|focacc|cracker|fette biscott|piadin|brioche|cornett/],
-  ["latte", "Latte, uova e formaggi", /latte|yogurt|burro|panna|\buov|formagg|mozzarell|parmigian|grana|ricotta|stracchino|mascarpone|scamorza/],
-  ["carne", "Carne, pesce e salumi", /carne|pollo|tacchin|manzo|maiale|salsicc|hamburger|macinat|pesce|salmone|merluzz|gamber|prosciutt|salam|mortadell|bresaola|wurstel|speck/],
-  ["dispensa", "Dispensa", /pasta|\briso\b|farina|zucchero|\bsale\b|\bolio|aceto|tonno|passata|pelati|legumi|ceci|fagiol|lenticch|caff[eè]|\bt[eè]\b|biscott|cereali|marmellat|nutella|miele|sugo|spezie|\bpepe\b/],
-  ["surgelati", "Surgelati", /surgel|gelat|pisellini|bastoncin|ghiaccio/],
-  ["bevande", "Bevande", /acqua|vino|birra|succo|bibit|coca|aranciata|spremuta/],
-  ["casa", "Casa e igiene", /detersiv|sapone|shampoo|dentifric|carta igien|scottex|tovagliol|spugn|candeggin|ammorbid|sacchett|pellicol|alluminio|deodorant|pannolin|assorbent|piatti/],
-  ["altro", "Altro", null],
+  ["frutta", "🍎", "Frutta e verdura", /mel[ae]|banan|aranc|limon|pomodor|insalat|lattug|zucchin|carot|patat|cipoll|agli|frutta|verdur|\bpera|\bpere\b|\buva\b|fragol|kiwi|spinac|peperon|melanzan|funghi|basilico|prezzemolo|rucola/],
+  ["pane", "🥖", "Pane e forno", /\bpane|panin|grissin|focacc|cracker|fette biscott|piadin|brioche|cornett/],
+  ["latte", "🧀", "Latte, uova e formaggi", /latte|yogurt|burro|panna|\buov|formagg|mozzarell|parmigian|grana|ricotta|stracchino|mascarpone|scamorza/],
+  ["carne", "🥩", "Carne, pesce e salumi", /carne|pollo|tacchin|manzo|maiale|salsicc|hamburger|macinat|pesce|salmone|merluzz|gamber|prosciutt|salam|mortadell|bresaola|wurstel|speck/],
+  ["dispensa", "🍝", "Dispensa", /pasta|\briso\b|farina|zucchero|\bsale\b|\bolio|aceto|tonno|passata|pelati|legumi|ceci|fagiol|lenticch|caff[eè]|\bt[eè]\b|biscott|cereali|marmellat|nutella|miele|sugo|spezie|\bpepe\b/],
+  ["surgelati", "🧊", "Surgelati", /surgel|gelat|pisellini|bastoncin|ghiaccio/],
+  ["bevande", "🥤", "Bevande", /acqua|vino|birra|succo|bibit|coca|aranciata|spremuta/],
+  ["casa", "🧴", "Casa e igiene", /detersiv|sapone|shampoo|dentifric|carta igien|scottex|tovagliol|spugn|candeggin|ammorbid|sacchett|pellicol|alluminio|deodorant|pannolin|assorbent|piatti/],
+  ["altro", "🛒", "Altro", null],
 ];
 const AISLE_ORDER = Object.fromEntries(AISLES.map((a, i) => [a[0], i]));
-const AISLE_NAME = Object.fromEntries(AISLES.map(a => [a[0], a[1]]));
-const guessAisle = text => { const v = text.toLowerCase(); const hit = AISLES.find(a => a[2] && a[2].test(v)); return hit ? hit[0] : "altro"; };
+const AISLE_EMOJI = Object.fromEntries(AISLES.map(a => [a[0], a[1]]));
+const AISLE_NAME = Object.fromEntries(AISLES.map(a => [a[0], a[2]]));
+const guessAisle = text => { const v = text.toLowerCase(); const hit = AISLES.find(a => a[3] && a[3].test(v)); return hit ? hit[0] : "altro"; };
 
 const COLORS = ["#2E7D5B", "#C0562F", "#3D6FB6", "#9A4FB0", "#B0820F", "#1F8A99", "#C2417A", "#5E6B2E"];
 
@@ -300,7 +301,7 @@ function showList() {
     oninput: () => { if (!S.catTouched) catSel.value = guessAisle(nameIn.value); renderPantry(); } });
   const qtyIn = h("input", { id: "item-qty", placeholder: "Quanto", maxlength: "20", "aria-label": "Quantità", autocomplete: "off" });
   const catSel = h("select", { id: "item-cat", "aria-label": "Reparto", onchange: () => { S.catTouched = true; } },
-    AISLES.map(([k, label]) => h("option", { value: k }, label)));
+    AISLES.map(([k, emoji, label]) => h("option", { value: k }, `${emoji} ${label}`)));
   catSel.value = "altro";
   const form = h("form", { class: "add", autocomplete: "off", onsubmit: e => {
     e.preventDefault();
@@ -365,7 +366,7 @@ function renderList() {
   const sections = AISLES.filter(([k]) => groups[k]).map(([k]) => {
     const g = groups[k].sort((a, b) => ((a.state === "done") - (b.state === "done")) || (a.at - b.at));
     return h("section", { class: "aisle" },
-      h("h3", null, AISLE_NAME[k], " ", h("span", { class: "count" }, `· ${g.filter(i => i.state !== "done").length}/${g.length}`)),
+      h("h3", null, h("span", { class: "emoji", "aria-hidden": "true" }, AISLE_EMOJI[k]), AISLE_NAME[k], " ", h("span", { class: "count" }, `· ${g.filter(i => i.state !== "done").length}/${g.length}`)),
       h("ul", { class: "items" }, g.map(itemRow)));
   });
   if (!sections.length && S.itemsLoaded) {
@@ -421,7 +422,7 @@ function renderPantry() {
       h("button", { class: "chip" + (S.editPantry ? " editing" : ""), type: "button",
         "aria-label": S.editPantry ? `Elimina ${it.name} per sempre` : `Rimetti ${it.name} in lista`,
         onclick: () => S.editPantry ? removeItem(it) : reactivate(it) },
-        h("span", { class: "plus", "aria-hidden": "true" }, S.editPantry ? "×" : "+"), h("span", null, it.name))));
+        h("span", { class: "plus", "aria-hidden": "true" }, S.editPantry ? "×" : "+"), h("span", null, it.name), h("span", { class: "emoji", "aria-hidden": "true" }, AISLE_EMOJI[it.cat] || AISLE_EMOJI.altro))));
   }
   els.pantry.replaceChildren(...[head, body,
     S.editPantry ? h("p", { class: "hint" }, "Tocca un articolo per eliminarlo per sempre.") : null].filter(Boolean));
