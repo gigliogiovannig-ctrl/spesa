@@ -75,5 +75,7 @@ Serve solo a far rispettare le regole del database. Chi usa l'app non vede nient
   link non può trovare né leggere la lista, quindi mandalo solo ai familiari.
 - Il PIN distingue le persone di casa, ma non è una protezione forte. Non usare
   PIN importanti come quello del bancomat.
-- La lista funziona anche senza rete, per esempio al supermercato con poco
-  segnale: le modifiche partono appena torna la connessione.
+- L'app si apre anche senza internet (service worker in `sw.js`), basta averla
+  aperta almeno una volta con la connessione. Senza rete mostra l'ultima
+  versione della lista salvata sul telefono. Le modifiche fatte offline
+  partono appena torna la connessione.

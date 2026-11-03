@@ -154,7 +154,9 @@ async function boot() {
     S.store = window.FIREBASE_CONFIG ? await firebaseStore(window.FIREBASE_CONFIG) : demoStore();
   } catch (e) {
     console.error(e);
-    return showFatal("Non riesco a collegarmi al database", "Controlla la connessione. Se il problema resta, verifica che in Firebase sia attivo l'accesso anonimo (vedi istruzioni).");
+    return showFatal("Non riesco a collegarmi al database", navigator.onLine === false
+      ? "Sei senza internet e su questo telefono non c'è ancora una copia della lista. Aprila una volta con la connessione: poi funzionerà anche offline."
+      : "Controlla la connessione. Se il problema resta, verifica che in Firebase sia attivo l'accesso anonimo (vedi istruzioni).");
   }
   const url = new URL(location.href);
   const fid = url.searchParams.get("f") || ls.get("spesa:fid");
@@ -164,10 +166,21 @@ async function boot() {
 
 async function openFamily(fid) {
   setView("loading", h("p", { class: "loading" }, "Caricamento…"));
+  // Il nome della famiglia è salvato sul telefono: così la lista si apre subito,
+  // anche senza internet, e il nome si aggiorna in background quando c'è rete.
+  const savedName = ls.get("spesa:fam:" + fid);
   let fam;
-  try { fam = await S.store.getFamily(fid); }
-  catch (e) { console.error(e); return showFatal("Non riesco a leggere la lista", "Controlla la connessione e ricarica la pagina."); }
-  if (!fam) { ls.del("spesa:fid"); return showWelcome("Questo link non corrisponde a nessuna lista. Chiedi di nuovo il link a chi l'ha creata."); }
+  if (savedName) {
+    fam = { name: savedName };
+    S.store.getFamily(fid).then(f => {
+      if (f && f.name !== savedName) { ls.set("spesa:fam:" + fid, f.name); S.family = f; if (S.view === "list") showList(); }
+    }).catch(() => {});
+  } else {
+    try { fam = await S.store.getFamily(fid); }
+    catch (e) { console.error(e); return showFatal("Non riesco a leggere la lista", "La prima volta serve internet per scaricare la lista. Controlla la connessione e ricarica la pagina."); }
+    if (!fam) { ls.del("spesa:fid"); return showWelcome("Questo link non corrisponde a nessuna lista. Chiedi di nuovo il link a chi l'ha creata."); }
+    ls.set("spesa:fam:" + fid, fam.name);
+  }
 
   S.fid = fid; S.family = fam;
   ls.set("spesa:fid", fid);
@@ -464,6 +477,16 @@ function finishShopping() {
   done.forEach(i => upd(i.id, { state: "off", offAt: now }));
   toast(`${plural(done.length, "articolo spostato", "articoli spostati")} in Da ricomprare`,
     () => done.forEach(i => upd(i.id, { state: "done", doneBy: i.doneBy || null })));
+}
+
+// ---------- Senza internet ----------
+function updateOnline() { $("#offline").hidden = navigator.onLine !== false; }
+addEventListener("online", updateOnline);
+addEventListener("offline", updateOnline);
+updateOnline();
+
+if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
+  navigator.serviceWorker.register("sw.js").catch(e => console.warn("Service worker non registrato", e));
 }
 
 boot();
