@@ -384,7 +384,7 @@ function renderList() {
   });
   if (!sections.length && S.itemsLoaded) {
     sections.push(h("div", { class: "notice" }, h("strong", null, "Niente da comprare, per ora"),
-      "Scrivi un articolo qui sopra, oppure tocca un articolo in “Da ricomprare” per rimetterlo in lista."));
+      "Scrivi un articolo qui sopra, oppure tocca un articolo in “Già comprati in passato” per rimetterlo in lista."));
   }
   els.lists.replaceChildren(...sections);
 
@@ -407,7 +407,7 @@ function itemRow(it) {
       h("span", { class: "name" }, it.name), it.qty ? h("span", { class: "qty" }, it.qty) : null,
       h("div", { class: "who" }, avatar(memberOf(pid), "sm"), isDone ? `preso da ${nameOf(it.doneBy)}` : `aggiunto da ${nameOf(it.by)}`)),
     h("button", { class: "icon-btn", type: "button", html: ICON.off, onclick: () => deselect(it),
-      title: "Togli dalla lista (resta in Da ricomprare)", "aria-label": `Togli ${it.name} dalla lista, resta in Da ricomprare` }),
+      title: "Togli dalla lista (resta in Già comprati in passato)", "aria-label": `Togli ${it.name} dalla lista, resta in Già comprati in passato` }),
     h("button", { class: "icon-btn del", type: "button", html: ICON.bin, onclick: () => removeItem(it),
       title: "Elimina per sempre", "aria-label": `Elimina ${it.name} per sempre` }));
 }
@@ -420,7 +420,7 @@ function renderPantry() {
     .sort((a, b) => (b.offAt || 0) - (a.offAt || 0) || a.name.localeCompare(b.name));
 
   const head = h("div", { class: "pantry-head" },
-    h("h3", null, "Da ricomprare ", h("span", { class: "count" }, `· ${off.length}`)),
+    h("h3", null, "Già comprati in passato ", h("span", { class: "count" }, `· ${off.length}`)),
     off.length ? h("button", { class: "btn link", type: "button", onclick: () => { S.editPantry = !S.editPantry; renderPantry(); } },
       S.editPantry ? "Fatto" : "Modifica") : null);
 
@@ -461,7 +461,7 @@ function toggleDone(it) {
 function deselect(it) {
   const prev = { state: it.state, doneBy: it.doneBy || null };
   upd(it.id, { state: "off", doneBy: null, offAt: Date.now() });
-  toast(`${it.name} spostato in Da ricomprare`, () => upd(it.id, prev));
+  toast(`${it.name} spostato in Già comprati in passato`, () => upd(it.id, prev));
 }
 function reactivate(it) {
   upd(it.id, { state: "todo", by: S.meId, at: Date.now(), doneBy: null });
@@ -475,7 +475,7 @@ function finishShopping() {
   const done = S.items.filter(i => i.state === "done");
   const now = Date.now();
   done.forEach(i => upd(i.id, { state: "off", offAt: now }));
-  toast(`${plural(done.length, "articolo spostato", "articoli spostati")} in Da ricomprare`,
+  toast(`${plural(done.length, "articolo spostato", "articoli spostati")} in Già comprati in passato`,
     () => done.forEach(i => upd(i.id, { state: "done", doneBy: i.doneBy || null })));
 }
 

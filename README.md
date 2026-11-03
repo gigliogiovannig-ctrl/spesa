@@ -11,10 +11,10 @@ parte.
   proposto in automatico.
 - **Preso** (cerchio a sinistra): spunta l'articolo mentre sei al supermercato.
 - **⊖ Togli dalla lista**: l'articolo sparisce dalla lista ma resta in
-  **Da ricomprare**. Lo rimetti in lista con un tocco. Scrivendo nel campo
-  "Cosa serve?" filtri anche gli articoli di Da ricomprare.
+  **Già comprati in passato**. Lo rimetti in lista con un tocco. Scrivendo nel campo
+  "Cosa serve?" filtri anche gli articoli di Già comprati in passato.
 - **Cestino**: elimina l'articolo per sempre.
-- **Fine spesa: togli i presi**: sposta tutti gli articoli spuntati in Da ricomprare.
+- **Fine spesa: togli i presi**: sposta tutti gli articoli spuntati in Già comprati in passato.
 - Ogni azione si può annullare per qualche secondo con **Annulla**.
 
 Finché il database non è collegato, l'app gira in **modalità prova**: funziona,
