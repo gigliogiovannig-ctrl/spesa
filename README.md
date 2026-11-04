@@ -14,6 +14,10 @@ parte.
   **Già comprati in passato**. Lo rimetti in lista con un tocco. Scrivendo nel campo
   "Cosa serve?" filtri anche gli articoli di Già comprati in passato.
 - **Cestino**: elimina l'articolo per sempre.
+- **📷 Foto**: quando aggiungi un articolo puoi allegare una foto (fotocamera o
+  galleria). Nella lista compare la miniatura: toccala per vederla grande,
+  cambiarla o toglierla. Le foto vengono rimpicciolite sul telefono prima di
+  essere salvate, così non pesano.
 - **Fine spesa: togli i presi**: sposta tutti gli articoli spuntati in Già comprati in passato.
 - Ogni azione si può annullare per qualche secondo con **Annulla**.
 

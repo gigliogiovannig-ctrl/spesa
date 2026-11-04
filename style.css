@@ -92,7 +92,23 @@ ul.items li:first-child { border-top: 0; }
 .check svg { opacity: 0; }
 li.done .check { background: var(--accent); border-color: var(--accent); }
 li.done .check svg { opacity: 1; }
-.what { min-width: 0; }
+.what { min-width: 0; display: flex; align-items: center; gap: 10px; }
+.what .text { min-width: 0; }
+.thumb { flex: none; width: 44px; height: 44px; padding: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; cursor: zoom-in; background: var(--bg); }
+.thumb img, .photo-preview img { width: 100%; height: 100%; object-fit: cover; display: block; }
+li.done .thumb { opacity: .55; }
+.btn.cam { display: grid; place-items: center; padding: 8px 12px; color: var(--muted); }
+.btn.cam.on { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+.photo-preview { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; font-size: 0.875rem; color: var(--muted); }
+.photo-preview img { width: 44px; height: 44px; border-radius: 10px; flex: none; }
+.chip-thumb { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; }
+.viewer { position: fixed; inset: 0; z-index: 30; background: rgba(0,0,0,.6); display: grid; place-items: center;
+  padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+.viewer-box { background: var(--surface); border-radius: 16px; padding: 12px; width: min(560px, 100%); max-height: 100%; display: flex; flex-direction: column; gap: 10px; overflow: auto; }
+.viewer-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.viewer-img { width: 100%; max-height: 65vh; object-fit: contain; border-radius: 10px; background: var(--bg); }
+.viewer .row { display: flex; gap: 8px; flex-wrap: wrap; }
+.btn.danger-text { color: var(--danger); }
 .name { font-weight: 600; overflow-wrap: anywhere; }
 .qty { color: var(--accent); font-weight: 600; margin-left: 6px; font-variant-numeric: tabular-nums; }
 .who { color: var(--muted); font-size: 0.8125rem; display: flex; align-items: center; gap: 6px; margin-top: 2px; }

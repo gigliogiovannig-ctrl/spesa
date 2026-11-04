@@ -58,6 +58,7 @@ async function hashPin(salt, pin) {
 const ICON = {
   check: '<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M2.5 7.5l3 3 6-7" fill="none" stroke="var(--accent-ink)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   bin: '<svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M3.5 5h11M7 5V3.5h4V5M5 5l.8 9.5h6.4L13 5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  camera: '<svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 6.5h3l1.5-2h5l1.5 2h3v9H3z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="10" cy="10.8" r="2.8" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>',
   off: '<svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="6.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M6 9h6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
 };
 
@@ -83,6 +84,7 @@ async function firebaseStore(config) {
     async createFamily(name) { const ref = fs.doc(fs.collection(db, "families")); await fs.setDoc(ref, { name, at: Date.now() }); return ref.id; },
     watch(fid, c, cb, err) { return fs.onSnapshot(col(fid, c), s => cb(s.docs.map(d => ({ id: d.id, ...d.data() }))), err); },
     newId(fid, c) { return fs.doc(col(fid, c)).id; },
+    async get(fid, c, id) { const s = await fs.getDoc(fs.doc(db, "families", fid, c, id)); return s.exists() ? s.data() : null; },
     set(fid, c, id, data) { return fs.setDoc(fs.doc(db, "families", fid, c, id), data); },
     update(fid, c, id, patch) { return fs.updateDoc(fs.doc(db, "families", fid, c, id), patch); },
     remove(fid, c, id) { return fs.deleteDoc(fs.doc(db, "families", fid, c, id)); },
@@ -106,10 +108,79 @@ function demoStore() {
       subs.add(fire); setTimeout(fire, 0); return () => subs.delete(fire);
     },
     newId: rid,
+    async get(fid, c, id) { return col(fid, c)[id] || null; },
     set(fid, c, id, d) { col(fid, c)[id] = { ...d }; return save(); },
     update(fid, c, id, patch) { const cur = col(fid, c)[id]; if (!cur) return Promise.reject(new Error("not-found")); Object.assign(cur, patch); return save(); },
     remove(fid, c, id) { delete col(fid, c)[id]; return save(); },
   };
+}
+
+// ---------- Foto ----------
+// La foto viene rimpicciolita sul telefono prima di salvarla:
+// una miniatura (dentro l'articolo, si vede subito anche offline)
+// e una versione grande (a parte, si scarica solo quando la apri).
+function encodePhoto(img, max, square) {
+  const w = img.naturalWidth, hgt = img.naturalHeight;
+  let sx = 0, sy = 0, sw = w, sh = hgt;
+  if (square) { const side = Math.min(w, hgt); sx = (w - side) / 2; sy = (hgt - side) / 2; sw = sh = side; }
+  const scale = Math.min(1, max / Math.max(sw, sh));
+  const c = document.createElement("canvas");
+  c.width = Math.max(1, Math.round(sw * scale)); c.height = Math.max(1, Math.round(sh * scale));
+  c.getContext("2d").drawImage(img, sx, sy, sw, sh, 0, 0, c.width, c.height);
+  let q = square ? 0.6 : 0.72, out = c.toDataURL("image/jpeg", q);
+  while (out.length > 850000 && q > 0.3) { q -= 0.12; out = c.toDataURL("image/jpeg", q); }
+  return out;
+}
+async function preparePhoto(file) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image(); img.src = url; await img.decode();
+    return { thumb: encodePhoto(img, 160, true), full: encodePhoto(img, 1280, false) };
+  } finally { URL.revokeObjectURL(url); }
+}
+function savePhoto(itemId, photo) {
+  return Promise.resolve(S.store.set(S.fid, "photos", itemId, { data: photo.full, at: Date.now() })).catch(e => {
+    console.error(e);
+    toast(e && e.code === "permission-denied"
+      ? "Foto grande non salvata: va aggiornata la regola del database (vedi istruzioni). La miniatura c'è."
+      : "Foto non salvata. Controlla la connessione e riprova.");
+  });
+}
+function pickPhoto(onPicked) {
+  const input = h("input", { type: "file", accept: "image/*", hidden: true });
+  input.addEventListener("change", async () => {
+    const file = input.files && input.files[0]; input.remove();
+    if (!file) return;
+    try { onPicked(await preparePhoto(file)); }
+    catch (e) { console.error(e); toast("Non riesco a leggere questa foto. Prova con un'altra."); }
+  });
+  document.body.append(input); input.click();
+}
+
+function openPhoto(it) {
+  const big = h("img", { class: "viewer-img", src: it.thumb, alt: "Foto di " + it.name });
+  const note = h("p", { class: "hint", hidden: true });
+  const close = () => { dlg.remove(); document.removeEventListener("keydown", onKey); };
+  const onKey = e => { if (e.key === "Escape") close(); };
+  const dlg = h("div", { class: "viewer", role: "dialog", "aria-modal": "true", "aria-label": "Foto di " + it.name, onclick: e => { if (e.target === dlg) close(); } },
+    h("div", { class: "viewer-box" },
+      h("div", { class: "viewer-head" }, h("strong", null, it.name),
+        h("button", { class: "icon-btn", type: "button", "aria-label": "Chiudi", onclick: close, html: '<svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M4 4l10 10M14 4L4 14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>' })),
+      big, note,
+      h("div", { class: "row" },
+        h("button", { class: "btn ghost", type: "button", onclick: () => pickPhoto(photo => {
+          upd(it.id, { thumb: photo.thumb }); savePhoto(it.id, photo); close(); toast("Foto cambiata");
+        }) }, "Cambia foto"),
+        h("button", { class: "btn ghost danger-text", type: "button", onclick: () => {
+          upd(it.id, { thumb: null }); write(S.store.remove(S.fid, "photos", it.id)); close(); toast("Foto rimossa");
+        } }, "Rimuovi foto"))));
+  document.body.append(dlg);
+  document.addEventListener("keydown", onKey);
+  dlg.querySelector("button").focus();
+  S.store.get(S.fid, "photos", it.id).then(p => {
+    if (p && p.data) big.src = p.data;
+    else { note.textContent = "La foto grande non è disponibile: vedi la miniatura."; note.hidden = false; }
+  }).catch(() => { note.textContent = "Senza internet si vede solo la miniatura."; note.hidden = false; });
 }
 
 // ---------- Stato ----------
@@ -316,13 +387,26 @@ function showList() {
   const catSel = h("select", { id: "item-cat", "aria-label": "Reparto", onchange: () => { S.catTouched = true; } },
     AISLES.map(([k, emoji, label]) => h("option", { value: k }, `${emoji} ${label}`)));
   catSel.value = "altro";
+  let pending = null;
+  const preview = h("div", { class: "photo-preview", hidden: true });
+  const setPending = photo => {
+    pending = photo;
+    preview.hidden = !photo;
+    camBtn.classList.toggle("on", !!photo);
+    if (photo) preview.replaceChildren(
+      h("img", { src: photo.thumb, alt: "" }),
+      h("span", null, "Foto allegata"),
+      h("button", { class: "btn link", type: "button", onclick: () => setPending(null) }, "Togli foto"));
+  };
+  const camBtn = h("button", { class: "btn ghost cam", type: "button", html: ICON.camera, title: "Allega una foto",
+    "aria-label": "Allega una foto all'articolo", onclick: () => pickPhoto(setPending) });
   const form = h("form", { class: "add", autocomplete: "off", onsubmit: e => {
     e.preventDefault();
     const n = nameIn.value.trim(); if (!n) return;
-    addItem(n, qtyIn.value.trim(), catSel.value);
-    nameIn.value = ""; qtyIn.value = ""; catSel.value = "altro"; S.catTouched = false;
+    addItem(n, qtyIn.value.trim(), catSel.value, pending);
+    nameIn.value = ""; qtyIn.value = ""; catSel.value = "altro"; S.catTouched = false; setPending(null);
     renderPantry(); nameIn.focus();
-  } }, nameIn, qtyIn, h("div", { class: "row" }, catSel, h("button", { class: "btn primary", type: "submit" }, "Aggiungi")));
+  } }, nameIn, qtyIn, h("div", { class: "row" }, catSel, camBtn, h("button", { class: "btn primary", type: "submit" }, "Aggiungi")), preview);
 
   const menu = h("div", { class: "card menu", hidden: true });
   const meBtn = h("button", { class: "me-btn", type: "button", "aria-expanded": "false", onclick: () => {
@@ -404,8 +488,11 @@ function itemRow(it) {
     h("button", { class: "check", type: "button", html: ICON.check, onclick: () => toggleDone(it),
       "aria-label": isDone ? `Segna ${it.name} come da prendere` : `Segna ${it.name} come preso` }),
     h("div", { class: "what" },
-      h("span", { class: "name" }, it.name), it.qty ? h("span", { class: "qty" }, it.qty) : null,
-      h("div", { class: "who" }, avatar(memberOf(pid), "sm"), isDone ? `preso da ${nameOf(it.doneBy)}` : `aggiunto da ${nameOf(it.by)}`)),
+      it.thumb ? h("button", { class: "thumb", type: "button", onclick: () => openPhoto(it), "aria-label": `Guarda la foto di ${it.name}` },
+        h("img", { src: it.thumb, alt: "" })) : null,
+      h("div", { class: "text" },
+        h("span", { class: "name" }, it.name), it.qty ? h("span", { class: "qty" }, it.qty) : null,
+        h("div", { class: "who" }, avatar(memberOf(pid), "sm"), isDone ? `preso da ${nameOf(it.doneBy)}` : `aggiunto da ${nameOf(it.by)}`))),
     h("button", { class: "icon-btn", type: "button", html: ICON.off, onclick: () => deselect(it),
       title: "Togli dalla lista (resta in Già comprati in passato)", "aria-label": `Togli ${it.name} dalla lista, resta in Già comprati in passato` }),
     h("button", { class: "icon-btn del", type: "button", html: ICON.bin, onclick: () => removeItem(it),
@@ -435,7 +522,9 @@ function renderPantry() {
       h("button", { class: "chip" + (S.editPantry ? " editing" : ""), type: "button",
         "aria-label": S.editPantry ? `Elimina ${it.name} per sempre` : `Rimetti ${it.name} in lista`,
         onclick: () => S.editPantry ? removeItem(it) : reactivate(it) },
-        h("span", { class: "plus", "aria-hidden": "true" }, S.editPantry ? "×" : "+"), h("span", null, it.name), h("span", { class: "emoji", "aria-hidden": "true" }, AISLE_EMOJI[it.cat] || AISLE_EMOJI.altro))));
+        h("span", { class: "plus", "aria-hidden": "true" }, S.editPantry ? "×" : "+"), h("span", null, it.name),
+        it.thumb ? h("img", { class: "chip-thumb", src: it.thumb, alt: "" })
+          : h("span", { class: "emoji", "aria-hidden": "true" }, AISLE_EMOJI[it.cat] || AISLE_EMOJI.altro))));
   }
   els.pantry.replaceChildren(...[head, body,
     S.editPantry ? h("p", { class: "hint" }, "Tocca un articolo per eliminarlo per sempre.") : null].filter(Boolean));
@@ -444,16 +533,18 @@ function renderPantry() {
 // ---------- Azioni ----------
 const upd = (id, patch) => write(S.store.update(S.fid, "items", id, patch));
 
-function addItem(name, qty, cat) {
+function addItem(name, qty, cat, photo) {
   const key = keyOf(name);
   const ex = S.items.find(i => i.key === key);
   if (ex) {
-    if (ex.state === "todo") return toast(`${ex.name} è già in lista`);
+    if (photo) { upd(ex.id, { thumb: photo.thumb }); savePhoto(ex.id, photo); }
+    if (ex.state === "todo") return toast(photo ? `Foto aggiunta a ${ex.name}` : `${ex.name} è già in lista`);
     upd(ex.id, { state: "todo", qty: qty || ex.qty || "", cat: S.catTouched ? cat : ex.cat, by: S.meId, at: Date.now(), doneBy: null });
     return toast(`${ex.name} rimesso in lista`);
   }
   const id = S.store.newId(S.fid, "items");
-  write(S.store.set(S.fid, "items", id, { name, key, qty, cat, state: "todo", by: S.meId, at: Date.now(), doneBy: null }));
+  write(S.store.set(S.fid, "items", id, { name, key, qty, cat, state: "todo", by: S.meId, at: Date.now(), doneBy: null, thumb: photo ? photo.thumb : null }));
+  if (photo) savePhoto(id, photo);
 }
 function toggleDone(it) {
   upd(it.id, it.state === "done" ? { state: "todo", doneBy: null } : { state: "done", doneBy: S.meId });
@@ -469,7 +560,9 @@ function reactivate(it) {
 function removeItem(it) {
   const { id, ...data } = it;
   write(S.store.remove(S.fid, "items", id));
-  toast(`${it.name} eliminato`, () => write(S.store.set(S.fid, "items", id, data)));
+  // La foto grande si cancella solo se non premi "Annulla".
+  const photoTimer = it.thumb ? setTimeout(() => write(S.store.remove(S.fid, "photos", id)), 7000) : null;
+  toast(`${it.name} eliminato`, () => { clearTimeout(photoTimer); write(S.store.set(S.fid, "items", id, data)); });
 }
 function finishShopping() {
   const done = S.items.filter(i => i.state === "done");
