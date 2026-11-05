@@ -488,6 +488,7 @@ function buildRimborsi() {
   const payer = h("select", { id: "exp-payer", onchange: () => fillDebtors() });
   const debtor = h("select", { id: "exp-debtor", onchange: () => { other.hidden = debtor.value !== "__other"; if (!other.hidden) other.focus(); } });
   const other = h("input", { id: "exp-other", placeholder: "Nome, es. Nonna", maxlength: "24", hidden: true, autocomplete: "off" });
+  const note = h("textarea", { id: "exp-note", rows: "2", maxlength: "300", placeholder: "es. metà della spesa di sabato, scontrino in cucina" });
   const err = h("p", { class: "error", hidden: true });
 
   function fillPayers() {
@@ -517,9 +518,10 @@ function buildRimborsi() {
     const id = S.store.newId(S.fid, "expenses");
     write(S.store.set(S.fid, "expenses", id, {
       desc: d, amount: cents, paidBy: payer.value, owedBy: ext ? null : debtor.value, owedName: ext ? extName : null,
-      by: S.meId, at: Date.now(), settled: false, settledAt: null, settledBy: null,
+      note: note.value.trim() || null,
+      by: S.meId, at: Date.now(), settled: false, settledAt: null, settledBy: null, settleNote: null,
     }));
-    desc.value = ""; amount.value = ""; other.value = ""; payer.value = S.meId; debtor.value = ""; fillDebtors();
+    desc.value = ""; amount.value = ""; other.value = ""; note.value = ""; payer.value = S.meId; debtor.value = ""; fillDebtors();
     toast(`Segnato: ${ext ? extName : nameOf(debtor.value)} deve ${euro(cents)}`);
   } },
     h("strong", null, "Segna una spesa da rimborsare"),
@@ -527,7 +529,8 @@ function buildRimborsi() {
       h("label", { class: "wide" }, "Per cosa", desc),
       h("label", null, "Importo (€)", amount),
       h("label", null, "Chi ha pagato", payer),
-      h("label", { class: "wide" }, "Chi deve rimborsare", debtor, other)),
+      h("label", { class: "wide" }, "Chi deve rimborsare", debtor, other),
+      h("label", { class: "wide" }, "Nota (facoltativa)", note)),
     err,
     h("button", { class: "btn primary", type: "submit" }, "Segna da rimborsare"));
 
@@ -590,24 +593,37 @@ function expRow(e) {
     : e.owedBy === S.meId ? `Devi ${toWhom(nameOf(e.paidBy))}`
     : `${debtorName(e)} deve ${toWhom(nameOf(e.paidBy))}`;
   const meta = e.settled ? `rimborsato il ${shortDate(e.settledAt || e.at)}` : `segnato il ${shortDate(e.at)}`;
+  const settling = S.settlingId === e.id && !e.settled;
+  const noteLine = (label, text) => text ? h("p", { class: "exp-note" }, h("span", { class: "exp-note-label" }, label), text) : null;
   return h("li", { class: "exp" + (e.settled ? " done" : "") },
     avatar(memberOf(e.owedBy) || { name: e.owedName || "?" }),
     h("div", { class: "what" }, h("div", { class: "text" },
       h("span", { class: "name" }, e.desc), h("span", { class: "qty" }, euro(e.amount)),
-      h("div", { class: "who" }, `${who} · ${meta}`))),
+      h("div", { class: "who" }, `${who} · ${meta}`),
+      noteLine("Nota: ", e.note),
+      noteLine("Nota sul rimborso: ", e.settleNote))),
     e.settled
       ? h("button", { class: "btn link", type: "button", onclick: () => reopenExpense(e) }, "Riapri")
-      : h("button", { class: "btn ghost settle", type: "button", onclick: () => settleExpense(e), "aria-label": `Segna ${e.desc} come rimborsato` }, "Rimborsato"),
-    h("button", { class: "icon-btn del", type: "button", html: ICON.bin, onclick: () => removeExpense(e), "aria-label": `Elimina ${e.desc}` }));
+      : h("button", { class: "btn ghost settle", type: "button", hidden: settling, onclick: () => { S.settlingId = e.id; S.settleDraft = ""; renderRimborsi(); document.getElementById("settle-note")?.focus(); },
+          "aria-label": `Segna ${e.desc} come rimborsato` }, "Rimborsato"),
+    h("button", { class: "icon-btn del", type: "button", html: ICON.bin, onclick: () => removeExpense(e), "aria-label": `Elimina ${e.desc}` }),
+    settling ? h("form", { class: "settle-form", onsubmit: ev => { ev.preventDefault(); settleExpense(e, S.settleDraft.trim()); } },
+      h("label", null, "Nota sul rimborso (facoltativa)",
+        h("textarea", { id: "settle-note", rows: "2", maxlength: "300", placeholder: "es. dati in contanti, Satispay, bonifico…", value: S.settleDraft,
+          oninput: ev => { S.settleDraft = ev.target.value; } })),
+      h("div", { class: "row" },
+        h("button", { class: "btn primary", type: "submit" }, "Conferma rimborso"),
+        h("button", { class: "btn ghost", type: "button", onclick: () => { S.settlingId = null; renderRimborsi(); } }, "Annulla"))) : null);
 }
 const updExp = (id, patch) => write(S.store.update(S.fid, "expenses", id, patch));
-function settleExpense(e) {
-  updExp(e.id, { settled: true, settledAt: Date.now(), settledBy: S.meId });
-  toast(`${e.desc}: rimborsato`, () => updExp(e.id, { settled: false, settledAt: null, settledBy: null }));
+function settleExpense(e, settleNote) {
+  S.settlingId = null;
+  updExp(e.id, { settled: true, settledAt: Date.now(), settledBy: S.meId, settleNote: settleNote || null });
+  toast(`${e.desc}: rimborsato`, () => updExp(e.id, { settled: false, settledAt: null, settledBy: null, settleNote: null }));
 }
 function reopenExpense(e) {
-  updExp(e.id, { settled: false, settledAt: null, settledBy: null });
-  toast(`${e.desc} di nuovo da rimborsare`, () => updExp(e.id, { settled: true, settledAt: e.settledAt || Date.now(), settledBy: e.settledBy || S.meId }));
+  updExp(e.id, { settled: false, settledAt: null, settledBy: null, settleNote: null });
+  toast(`${e.desc} di nuovo da rimborsare`, () => updExp(e.id, { settled: true, settledAt: e.settledAt || Date.now(), settledBy: e.settledBy || S.meId, settleNote: e.settleNote || null }));
 }
 function removeExpense(e) {
   const { id, ...data } = e;

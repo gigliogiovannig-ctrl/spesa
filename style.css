@@ -43,8 +43,8 @@ header.top { display: flex; align-items: flex-start; justify-content: space-betw
 header.top > div:first-child { min-width: 0; }
 
 input, select, button { font: inherit; color: inherit; }
-input, select { background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; min-width: 0; width: 100%; }
-input:focus-visible, select:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+input, select, textarea { background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; min-width: 0; width: 100%; }
+input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 label { display: flex; flex-direction: column; gap: 6px; font-size: 0.875rem; color: var(--muted); font-weight: 500; }
 
 .btn { border: 0; border-radius: 10px; padding: 10px 16px; font-weight: 600; cursor: pointer; white-space: nowrap; }
@@ -158,3 +158,8 @@ ul.balance-list li.minus .bal-text { color: var(--danger); }
 li.exp.done .name, li.exp.done .qty { color: var(--muted); }
 details.settled summary { cursor: pointer; color: var(--muted); font-size: 0.875rem; font-weight: 600; padding: 6px 4px; }
 details.settled ul { margin-top: 8px; }
+textarea { resize: vertical; min-height: 44px; font: inherit; color: inherit; }
+.exp-note { margin-top: 4px; font-size: 0.8125rem; color: var(--ink); overflow-wrap: anywhere; white-space: pre-wrap; }
+.exp-note-label { color: var(--muted); font-weight: 600; }
+.settle-form { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 8px; padding: 4px 6px 6px 0; }
+.settle-form .row { display: flex; gap: 8px; flex-wrap: wrap; }
