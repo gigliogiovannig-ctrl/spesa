@@ -19,6 +19,11 @@ parte.
   cambiarla o toglierla. Le foto vengono rimpicciolite sul telefono prima di
   essere salvate, così non pesano.
 - **Fine spesa: togli i presi**: sposta tutti gli articoli spuntati in Già comprati in passato.
+- **💶 Rimborsi** (seconda scheda in alto): segna una spesa da rimborsare con
+  importo, chi ha pagato e chi deve rimborsare (un familiare o un'altra persona,
+  per esempio la nonna). In cima l'app calcola chi deve quanto a chi, già al
+  netto dei debiti incrociati. Premi **Rimborsato** quando i soldi sono
+  restituiti; i rimborsi chiusi restano in "Già rimborsati".
 - Ogni azione si può annullare per qualche secondo con **Annulla**.
 
 Finché il database non è collegato, l'app gira in **modalità prova**: funziona,

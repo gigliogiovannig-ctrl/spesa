@@ -135,3 +135,26 @@ li.done .name, li.done .qty { text-decoration: line-through; color: var(--muted)
 .offline { max-width: 560px; margin: 0 auto 16px; background: var(--ink); color: var(--bg); border-radius: 12px; padding: 10px 14px; font-size: 0.875rem; }
 .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg); padding: 10px 10px 10px 16px; border-radius: 12px; display: flex; gap: 12px; align-items: center; width: max-content; max-width: calc(100% - 32px); box-shadow: 0 6px 24px rgba(0,0,0,.18); z-index: 20; }
 .toast button { background: transparent; border: 0; color: var(--accent-soft); font-weight: 600; cursor: pointer; padding: 6px 8px; }
+
+/* Schede Spesa / Rimborsi */
+.tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 4px; }
+.tab { border: 0; background: transparent; border-radius: 9px; padding: 9px 10px; font-weight: 600; color: var(--muted); cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px; }
+.tab.on { background: var(--accent); color: var(--accent-ink); }
+.badge { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 0.75rem; display: inline-grid; place-items: center; margin-left: 4px; font-variant-numeric: tabular-nums; }
+.tab.on .badge { background: var(--accent-ink); color: var(--accent); }
+.pane { display: flex; flex-direction: column; gap: 20px; }
+
+/* Rimborsi */
+.exp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.exp-grid .wide { grid-column: 1 / -1; }
+.exp-grid label { min-width: 0; }
+.sec-title { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0 0 6px 4px; font-weight: 600; }
+.balances, .exp-list { display: flex; flex-direction: column; }
+ul.items li.exp { grid-template-columns: auto 1fr auto auto; gap: 10px; }
+ul.balance-list li { grid-template-columns: auto 1fr; gap: 10px; padding: 12px; font-weight: 600; }
+ul.balance-list li.plus .bal-text { color: var(--accent); }
+ul.balance-list li.minus .bal-text { color: var(--danger); }
+.btn.settle { padding: 8px 10px; font-size: 0.875rem; }
+li.exp.done .name, li.exp.done .qty { color: var(--muted); }
+details.settled summary { cursor: pointer; color: var(--muted); font-size: 0.875rem; font-weight: 600; padding: 6px 4px; }
+details.settled ul { margin-top: 8px; }

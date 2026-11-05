@@ -186,7 +186,8 @@ function openPhoto(it) {
 // ---------- Stato ----------
 const S = {
   store: null, fid: null, family: null,
-  members: [], items: [], membersLoaded: false, itemsLoaded: false,
+  members: [], items: [], expenses: [], membersLoaded: false, itemsLoaded: false, expensesLoaded: false,
+  tab: ls.get("spesa:tab") === "rimborsi" ? "rimborsi" : "spesa",
   meId: null, view: null, editPantry: false, catTouched: false, menuOpen: false,
 };
 const me = () => S.members.find(m => m.id === S.meId);
@@ -265,6 +266,8 @@ async function openFamily(fid) {
   };
   S.store.watch(fid, "members", list => { S.members = list; S.membersLoaded = true; route(); }, onErr);
   S.store.watch(fid, "items", list => { S.items = list; S.itemsLoaded = true; if (S.view === "list") renderList(); }, onErr);
+  S.store.watch(fid, "expenses", list => { S.expenses = list; S.expensesLoaded = true; S.expensesBlocked = false; if (S.view === "list") renderRimborsi(); },
+    e => { console.error(e); S.expensesBlocked = true; if (S.view === "list") renderRimborsi(); });
 }
 
 function route() {
@@ -273,7 +276,7 @@ function route() {
     if (!["pin", "new-member"].includes(S.view)) showWho();
     return;
   }
-  if (S.view !== "list") showList(); else renderList();
+  if (S.view !== "list") showList(); else { renderList(); renderRimborsi(); }
 }
 
 function showFatal(title, text) {
@@ -421,10 +424,195 @@ function showList() {
     pantry: h("section", { class: "pantry" }),
     nameIn,
   };
+  const spesaPane = h("div", { class: "pane", id: "pane-spesa" }, form, els.lists, els.bar, els.pantry);
+  const rimborsiPane = buildRimborsi();
+  const tabBtn = (key, emoji, label) => h("button", { class: "tab", type: "button", role: "tab", id: "tab-" + key, "aria-controls": "pane-" + key,
+    onclick: () => { S.tab = key; ls.set("spesa:tab", key); applyTab(); } },
+    h("span", { "aria-hidden": "true" }, emoji), " " + label, h("span", { class: "badge", hidden: true }));
+  els.tabs = h("div", { class: "tabs", role: "tablist" }, tabBtn("spesa", "🛒", "Spesa"), tabBtn("rimborsi", "💶", "Rimborsi"));
+  els.panes = { spesa: spesaPane, rimborsi: rimborsiPane };
   setView("list",
     h("header", { class: "top" }, h("div", null, h("h1", null, S.family.name), els.summary), meBtn),
-    menu, demoBanner(), form, els.lists, els.bar, els.pantry);
+    menu, demoBanner(), els.tabs, spesaPane, rimborsiPane);
+  applyTab();
   renderList();
+  renderRimborsi();
+}
+
+function applyTab() {
+  for (const key of ["spesa", "rimborsi"]) {
+    const on = S.tab === key;
+    els.panes[key].hidden = !on;
+    const b = document.getElementById("tab-" + key);
+    b.setAttribute("aria-selected", String(on)); b.classList.toggle("on", on);
+  }
+  updateSummary();
+}
+
+function updateSummary() {
+  if (!els.summary) return;
+  if (S.tab === "rimborsi") {
+    const open = S.expenses.filter(e => !e.settled);
+    els.summary.textContent = !S.expensesLoaded ? "Caricamento dei rimborsi…"
+      : open.length ? plural(open.length, "rimborso in sospeso", "rimborsi in sospeso") : "Nessun rimborso in sospeso";
+    return;
+  }
+  const active = S.items.filter(i => i.state !== "off");
+  const toGet = active.filter(i => i.state !== "done").length;
+  els.summary.textContent = !S.itemsLoaded ? "Caricamento della lista…"
+    : toGet ? plural(toGet, "articolo da prendere", "articoli da prendere")
+    : active.length ? "Tutto preso!" : "La lista è vuota";
+}
+function setBadge(key, n) {
+  const b = document.querySelector("#tab-" + key + " .badge");
+  if (b) { b.hidden = !n; b.textContent = n; }
+}
+
+// ---------- Rimborsi ----------
+const euro = cents => (cents / 100).toLocaleString("it-IT", { style: "currency", currency: "EUR" });
+function parseEuro(text) {
+  let t = String(text).replace(/[€\s]/g, "");
+  if (t.includes(",")) t = t.replace(/\./g, "").replace(",", ".");
+  const n = Number(t);
+  return Number.isFinite(n) && n > 0 && n < 1e7 ? Math.round(n * 100) : null;
+}
+const shortDate = ms => new Date(ms).toLocaleDateString("it-IT", { day: "numeric", month: "short" });
+const debtorKey = e => e.owedBy || ("ext:" + keyOf(e.owedName || "?"));
+const toWhom = name => (/^[aA]/.test(name) ? "ad " : "a ") + name;
+const debtorName = e => e.owedBy ? nameOf(e.owedBy) : (e.owedName || "qualcuno");
+
+let R = {};
+function buildRimborsi() {
+  const desc = h("input", { id: "exp-desc", placeholder: "es. spesa al mercato", maxlength: "60", required: true, autocomplete: "off" });
+  const amount = h("input", { id: "exp-amount", placeholder: "0,00", inputmode: "decimal", required: true, autocomplete: "off" });
+  const payer = h("select", { id: "exp-payer", onchange: () => fillDebtors() });
+  const debtor = h("select", { id: "exp-debtor", onchange: () => { other.hidden = debtor.value !== "__other"; if (!other.hidden) other.focus(); } });
+  const other = h("input", { id: "exp-other", placeholder: "Nome, es. Nonna", maxlength: "24", hidden: true, autocomplete: "off" });
+  const err = h("p", { class: "error", hidden: true });
+
+  function fillPayers() {
+    const cur = payer.value || S.meId;
+    payer.replaceChildren(...S.members.map(m => h("option", { value: m.id }, m.id === S.meId ? `${m.name} (io)` : m.name)));
+    payer.value = S.members.some(m => m.id === cur) ? cur : S.meId;
+  }
+  function fillDebtors() {
+    const cur = debtor.value;
+    const others = S.members.filter(m => m.id !== payer.value);
+    debtor.replaceChildren(...others.map(m => h("option", { value: m.id }, m.id === S.meId ? `${m.name} (io)` : m.name)),
+      h("option", { value: "__other" }, "Un'altra persona…"));
+    debtor.value = [...debtor.options].some(o => o.value === cur) ? cur : (others[0] ? others[0].id : "__other");
+    other.hidden = debtor.value !== "__other";
+  }
+
+  const form = h("form", { class: "card exp-form", autocomplete: "off", onsubmit: e => {
+    e.preventDefault();
+    const d = desc.value.trim(), cents = parseEuro(amount.value);
+    const fail = m => { err.textContent = m; err.hidden = false; };
+    if (!d) return fail("Scrivi per cosa è la spesa.");
+    if (cents == null) return fail("Scrivi un importo valido, per esempio 12,50.");
+    const ext = debtor.value === "__other";
+    const extName = other.value.trim();
+    if (ext && !extName) return fail("Scrivi il nome di chi deve rimborsare.");
+    err.hidden = true;
+    const id = S.store.newId(S.fid, "expenses");
+    write(S.store.set(S.fid, "expenses", id, {
+      desc: d, amount: cents, paidBy: payer.value, owedBy: ext ? null : debtor.value, owedName: ext ? extName : null,
+      by: S.meId, at: Date.now(), settled: false, settledAt: null, settledBy: null,
+    }));
+    desc.value = ""; amount.value = ""; other.value = ""; payer.value = S.meId; debtor.value = ""; fillDebtors();
+    toast(`Segnato: ${ext ? extName : nameOf(debtor.value)} deve ${euro(cents)}`);
+  } },
+    h("strong", null, "Segna una spesa da rimborsare"),
+    h("div", { class: "exp-grid" },
+      h("label", { class: "wide" }, "Per cosa", desc),
+      h("label", null, "Importo (€)", amount),
+      h("label", null, "Chi ha pagato", payer),
+      h("label", { class: "wide" }, "Chi deve rimborsare", debtor, other)),
+    err,
+    h("button", { class: "btn primary", type: "submit" }, "Segna da rimborsare"));
+
+  R = { fillPayers, fillDebtors, balances: h("section", { class: "balances" }), open: h("section", { class: "exp-list" }), settled: h("section", { class: "exp-list" }) };
+  return h("div", { class: "pane", id: "pane-rimborsi" }, R.balances, form, R.open, R.settled);
+}
+
+function renderRimborsi() {
+  if (S.view !== "list" || !R.open) return;
+  R.fillPayers(); R.fillDebtors();
+  const open = S.expenses.filter(e => !e.settled).sort((a, b) => b.at - a.at);
+  const done = S.expenses.filter(e => e.settled).sort((a, b) => (b.settledAt || 0) - (a.settledAt || 0)).slice(0, 30);
+  setBadge("rimborsi", open.length);
+  updateSummary();
+
+  if (S.expensesBlocked) {
+    R.balances.replaceChildren(h("div", { class: "notice" }, h("strong", null, "Rimborsi non ancora attivi"),
+      "Va aggiornata la regola del database in Firebase (vedi istruzioni). La lista della spesa funziona normalmente."));
+    R.open.replaceChildren(); R.settled.replaceChildren(); return;
+  }
+
+  // Saldi: per ogni coppia di persone, quanto deve l'una all'altra al netto
+  const pair = {};
+  for (const e of open) {
+    const k = debtorKey(e) + "|" + e.paidBy;
+    pair[k] = (pair[k] || 0) + e.amount;
+  }
+  const lines = [], seen = new Set();
+  for (const k of Object.keys(pair)) {
+    const [a, b] = k.split("|"); const id = [a, b].sort().join("|");
+    if (seen.has(id)) continue; seen.add(id);
+    const net = (pair[a + "|" + b] || 0) - (pair[b + "|" + a] || 0);
+    if (net) lines.push(net > 0 ? { from: a, to: b, cents: net } : { from: b, to: a, cents: -net });
+  }
+  const extNames = {}; for (const e of open) if (!e.owedBy) extNames[debtorKey(e)] = e.owedName;
+  const label = key => key.startsWith("ext:") ? (extNames[key] || "qualcuno") : nameOf(key);
+  const sentence = l => l.from === S.meId ? `Devi ${euro(l.cents)} ${toWhom(label(l.to))}`
+    : l.to === S.meId ? `${label(l.from)} ti deve ${euro(l.cents)}`
+    : `${label(l.from)} deve ${euro(l.cents)} ${toWhom(label(l.to))}`;
+  const mine = l => l.from === S.meId || l.to === S.meId;
+  lines.sort((x, y) => (mine(y) - mine(x)) || y.cents - x.cents);
+  R.balances.replaceChildren(...(lines.length ? [
+    h("h3", { class: "sec-title" }, "Chi deve a chi"),
+    h("ul", { class: "items balance-list" }, lines.map(l => h("li", { class: l.to === S.meId ? "plus" : l.from === S.meId ? "minus" : "" },
+      avatar(memberOf(l.from) || { name: label(l.from) }), h("span", { class: "bal-text" }, sentence(l)))))] : []));
+
+  R.open.replaceChildren(
+    h("h3", { class: "sec-title" }, "Da rimborsare ", h("span", { class: "count" }, `· ${open.length}`)),
+    open.length ? h("ul", { class: "items" }, open.map(expRow))
+      : h("div", { class: "notice" }, h("strong", null, "Nessun rimborso in sospeso"), "Quando paghi qualcosa per qualcun altro, segnalo qui sopra."));
+
+  R.settled.replaceChildren(...(done.length ? [
+    h("details", { class: "settled" },
+      h("summary", null, `Già rimborsati (${done.length === 30 ? "ultimi 30" : done.length})`),
+      h("ul", { class: "items" }, done.map(expRow)))] : []));
+}
+
+function expRow(e) {
+  const who = e.paidBy === S.meId ? `${debtorName(e)} ti deve`
+    : e.owedBy === S.meId ? `Devi ${toWhom(nameOf(e.paidBy))}`
+    : `${debtorName(e)} deve ${toWhom(nameOf(e.paidBy))}`;
+  const meta = e.settled ? `rimborsato il ${shortDate(e.settledAt || e.at)}` : `segnato il ${shortDate(e.at)}`;
+  return h("li", { class: "exp" + (e.settled ? " done" : "") },
+    avatar(memberOf(e.owedBy) || { name: e.owedName || "?" }),
+    h("div", { class: "what" }, h("div", { class: "text" },
+      h("span", { class: "name" }, e.desc), h("span", { class: "qty" }, euro(e.amount)),
+      h("div", { class: "who" }, `${who} · ${meta}`))),
+    e.settled
+      ? h("button", { class: "btn link", type: "button", onclick: () => reopenExpense(e) }, "Riapri")
+      : h("button", { class: "btn ghost settle", type: "button", onclick: () => settleExpense(e), "aria-label": `Segna ${e.desc} come rimborsato` }, "Rimborsato"),
+    h("button", { class: "icon-btn del", type: "button", html: ICON.bin, onclick: () => removeExpense(e), "aria-label": `Elimina ${e.desc}` }));
+}
+const updExp = (id, patch) => write(S.store.update(S.fid, "expenses", id, patch));
+function settleExpense(e) {
+  updExp(e.id, { settled: true, settledAt: Date.now(), settledBy: S.meId });
+  toast(`${e.desc}: rimborsato`, () => updExp(e.id, { settled: false, settledAt: null, settledBy: null }));
+}
+function reopenExpense(e) {
+  updExp(e.id, { settled: false, settledAt: null, settledBy: null });
+  toast(`${e.desc} di nuovo da rimborsare`, () => updExp(e.id, { settled: true, settledAt: e.settledAt || Date.now(), settledBy: e.settledBy || S.meId }));
+}
+function removeExpense(e) {
+  const { id, ...data } = e;
+  write(S.store.remove(S.fid, "expenses", id));
+  toast(`${e.desc} eliminato`, () => write(S.store.set(S.fid, "expenses", id, data)));
 }
 
 function renderMenu(menu) {
@@ -453,9 +641,8 @@ function renderList() {
   const toGet = active.filter(i => i.state !== "done").length;
   const done = active.length - toGet;
 
-  els.summary.textContent = !S.itemsLoaded ? "Caricamento della lista…"
-    : toGet ? plural(toGet, "articolo da prendere", "articoli da prendere")
-    : active.length ? "Tutto preso!" : "La lista è vuota";
+  updateSummary();
+  setBadge("spesa", toGet);
 
   // Lista attiva, per reparto
   const groups = {};
