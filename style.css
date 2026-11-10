@@ -163,3 +163,6 @@ textarea { resize: vertical; min-height: 44px; font: inherit; color: inherit; }
 .exp-note-label { color: var(--muted); font-weight: 600; }
 .settle-form { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 8px; padding: 4px 6px 6px 0; }
 .settle-form .row { display: flex; gap: 8px; flex-wrap: wrap; }
+.install { gap: 10px; border-color: var(--accent); background: var(--accent-soft); }
+.install .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.install-slot:empty { display: none; }

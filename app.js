@@ -433,7 +433,7 @@ function showList() {
   els.panes = { spesa: spesaPane, rimborsi: rimborsiPane };
   setView("list",
     h("header", { class: "top" }, h("div", null, h("h1", null, S.family.name), els.summary), meBtn),
-    menu, demoBanner(), els.tabs, spesaPane, rimborsiPane);
+    menu, demoBanner(), installBanner(), els.tabs, spesaPane, rimborsiPane);
   applyTab();
   renderList();
   renderRimborsi();
@@ -773,6 +773,33 @@ function finishShopping() {
   done.forEach(i => upd(i.id, { state: "off", offAt: now }));
   toast(`${plural(done.length, "articolo spostato", "articoli spostati")} in Già comprati in passato`,
     () => done.forEach(i => upd(i.id, { state: "done", doneBy: i.doneBy || null })));
+}
+
+// ---------- Installa come app ----------
+// Su Android/Chrome il browser offre l'installazione: la teniamo da parte e la
+// lanciamo dal pulsante. Su iPhone non esiste: mostriamo i due passi da fare.
+let installEvent = null;
+addEventListener("beforeinstallprompt", e => { e.preventDefault(); installEvent = e; refreshInstall(); });
+addEventListener("appinstalled", () => { installEvent = null; ls.set("spesa:installed", "1"); refreshInstall(); });
+const isStandalone = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+let installSlot = null;
+function installBanner() { installSlot = h("div", { class: "install-slot" }); refreshInstall(); return installSlot; }
+function refreshInstall() {
+  if (!installSlot) return;
+  const show = !isStandalone() && ls.get("spesa:install-hide") !== "1" && (installEvent || isIOS());
+  if (!show) return installSlot.replaceChildren();
+  const hide = h("button", { class: "btn link", type: "button", onclick: () => { ls.set("spesa:install-hide", "1"); refreshInstall(); } }, "Non ora");
+  const body = installEvent
+    ? [h("p", null, "Installa Spesa sul telefono: si apre come un'app, con la sua icona, anche senza internet."),
+       h("div", { class: "row" }, h("button", { class: "btn primary", type: "button", onclick: async () => {
+         const ev = installEvent; installEvent = null;
+         ev.prompt(); try { await ev.userChoice; } catch {} refreshInstall();
+       } }, "📲 Installa l'app"), hide)]
+    : [h("p", null, "Per averla come un'app su iPhone: tocca ", h("strong", null, "Condividi"), " (il quadrato con la freccia in basso), poi ",
+        h("strong", null, "Aggiungi alla schermata Home"), "."),
+       h("div", { class: "row" }, hide)];
+  installSlot.replaceChildren(h("div", { class: "install card" }, ...body));
 }
 
 // ---------- Senza internet ----------
